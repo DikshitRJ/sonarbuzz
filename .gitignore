@@ -65,3 +65,4 @@ Thumbs.db
 *.user
 *.userosscache
 *.sln.docstates
+*conductor*
