@@ -10,6 +10,18 @@ Welcome! The core logic of SonarBuzz is fully implemented as a **headless backen
 - **Social**: Automatic Last.fm scrobbling and auth.
 - **Pro Logic**: Gapless pre-warming, Replay Gain, and Discovery.
 
+## 🚀 Single Entry Point
+All services, stores, and types are exported from the root of the `@shared` package. You can import everything you need in one line:
+
+```typescript
+import { 
+  useAudioStore, 
+  useLocalStore, 
+  tidalApi, 
+  lyricsService 
+} from '@shared';
+```
+
 ---
 
 ## 🛠 Your Integration Roadmap
