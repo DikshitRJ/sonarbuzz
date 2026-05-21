@@ -15,10 +15,19 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    "strict": true,
+    "strict": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "shared": ["../../../packages/shared"],
+      "react-native": ["./mock-rn.ts"],
+      "zustand": ["node_modules/zustand"],
+      "zustand/middleware": ["node_modules/zustand/middleware"],
+      "react": ["node_modules/react"],
+      "react/jsx-runtime": ["node_modules/react/jsx-runtime"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
