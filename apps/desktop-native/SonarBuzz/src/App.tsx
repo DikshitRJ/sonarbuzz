@@ -2,11 +2,84 @@ import React, { useEffect, useState } from "react";
 import { initDb, tidalApi, useAudioStore, useLocalStore, lyricsService, lastfmService } from "shared";
 import "./App.css";
 
-// Bypass CORS by hijacking fetch to route to the Vite Proxy during development
+// Bypass CORS by hijacking fetch to route to the Vite Proxy during development,
+// or via Rust Tauri invoke calls in desktop/production builds.
 const originalFetch = window.fetch;
 window.fetch = async (input, init) => {
   let url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
   
+  const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__;
+  
+  // Resolve relative/proxy paths first to absolute domains
+  let targetUrl = url;
+  const origin = window.location.origin;
+  if (targetUrl.startsWith(origin)) {
+    targetUrl = targetUrl.substring(origin.length);
+  }
+  
+  if (targetUrl.startsWith('/tidal-auth')) {
+    targetUrl = targetUrl.replace(/^\/tidal-auth/, 'https://auth.tidal.com');
+  } else if (targetUrl.startsWith('/tidal-api')) {
+    targetUrl = targetUrl.replace(/^\/tidal-api/, 'https://api.tidal.com');
+  } else if (targetUrl.startsWith('/tidal-openapi')) {
+    targetUrl = targetUrl.replace(/^\/tidal-openapi/, 'https://openapi.tidal.com');
+  } else if (targetUrl.startsWith('/')) {
+    targetUrl = origin + targetUrl;
+  }
+
+  // Only route known external APIs through the Rust proxy to avoid intercepting 
+  // massive local resources (like compiled scripts/HMR) which can cause RangeError.
+  const isExternalApi = 
+    targetUrl.includes('tidal.com') ||
+    targetUrl.includes('githubusercontent.com') ||
+    targetUrl.includes('lrclib.net') ||
+    targetUrl.includes('audioscrobbler.com') ||
+    targetUrl.includes('musicbrainz.org');
+
+  if (isTauri && isExternalApi) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      
+      const headersRecord: Record<string, string> = {};
+      if (init?.headers) {
+        const headers = new Headers(init.headers);
+        headers.forEach((value, key) => {
+          headersRecord[key] = value;
+        });
+      }
+
+      let bodyStr: string | null = null;
+      if (init?.body) {
+        if (typeof init.body === 'string') {
+          bodyStr = init.body;
+        } else if (init.body instanceof URLSearchParams) {
+          bodyStr = init.body.toString();
+        } else {
+          bodyStr = String(init.body);
+        }
+      }
+      
+      const res = await invoke<{ status: number; body: string }>('http_request', {
+        url: targetUrl,
+        method: init?.method || 'GET',
+        headers: headersRecord,
+        body: bodyStr,
+      });
+
+      return {
+        ok: res.status >= 200 && res.status < 300,
+        status: res.status,
+        statusText: '',
+        headers: new Headers(),
+        text: async () => res.body,
+        json: async () => JSON.parse(res.body),
+      } as Response;
+    } catch (err) {
+      console.error("Tauri HTTP invoke error, falling back to original fetch:", err);
+    }
+  }
+
+  // Standard development web browser proxy mapping
   if (url.startsWith('https://auth.tidal.com')) {
     url = url.replace('https://auth.tidal.com', '/tidal-auth');
   } else if (url.startsWith('https://api.tidal.com')) {
